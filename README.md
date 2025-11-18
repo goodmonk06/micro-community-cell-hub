@@ -6,36 +6,62 @@ A fullstack TypeScript application for managing micro-communities (cells) within
 
 ## Features
 
-### 🏘️ Cell Management
-- Create and manage community cells (sub-groups)
-- Organize cells with unique keys, names, and descriptions
-- Tag cells with themes for easy discovery
-- Assign hosts and co-hosts to manage cells
+### 🏘️ Advanced Cell Management
+- Create and manage community cells from templates or scratch
+- Hierarchical cells (parent/child relationships)
+- Cell status lifecycle (Draft → Active → Paused → Archived → Closed)
+- Visibility controls (Public, Private, Invite-Only)
+- Structured topics and subtopics
+- Cell-to-cell relationships (related, merged, split)
+- Per-cell configuration (meeting frequency, approval requirements, auto-close rules)
 
-### 👥 Membership Tracking
-- Track who belongs to which cells
-- Manage member roles (Member, Host, Co-host)
-- Handle member join/leave lifecycle
-- View membership history
+### 👥 Rich Membership System
+- Role-based access (Member, Host, Co-host)
+- Extended member profiles with skills, interests, and availability
+- Engagement scoring per member
+- Member-to-member relationships (mentors, collaborators)
+- Invitation tracking and onboarding
+- Complete membership history and lifecycle
 
-### 📊 Session Recording
-- Log cell activities and meetings
-- Track session types (Circle, Study, Project, Other)
-- Record attendance counts and session notes
-- View session history and patterns
+### 📊 Comprehensive Activity Tracking
+- Multiple session types (Circle, Study, Project, Other)
+- Granular activity logging (messages, resources, invitations)
+- Attendance tracking and trends
+- Session notes and metadata
+- Calendar integration for scheduling
 
-### 📈 Health Analytics
-- Cell health scoring based on activity and engagement
-- Member statistics and role distribution
-- Session analytics (frequency, attendance, types)
-- Activity trends over time
+### 📈 Advanced Health Analytics
+- Multi-factor health scoring (0-100)
+- Historical health snapshots for trend analysis
+- Automated risk detection and interventions
+- Trend direction tracking (Improving, Stable, Declining)
+- Custom health algorithms via adapters
+- Real-time health monitoring
 
-### 💻 Modern Tech Stack
+### 🤖 AI-Powered Recommendations
+- Cell recommendations for members based on interests
+- Member recommendations for cells
+- Potential co-host identification
+- Content generation (descriptions, welcome messages)
+- Topic extraction from text
+- Pluggable AI adapters (OpenAI, Claude, custom)
+
+### 🔌 Extensible Integration System
+- **Notifications**: Email, SMS, Push, Discord, Slack via adapters
+- **Profiles**: Integrate with any identity system (Auth0, Clerk, etc.)
+- **AI**: OpenAI, Anthropic, or custom AI services
+- **Metrics**: Export to Prometheus, Datadog, CloudWatch
+- **Calendar**: Sync with Google Calendar, Outlook
+- Event-driven architecture for custom integrations
+
+### 🏗️ Production-Ready Infrastructure
 - **Frontend**: Next.js 15 with React 18 and TypeScript
-- **Styling**: Tailwind CSS
-- **Backend**: Next.js API Routes
-- **Database**: PostgreSQL with Prisma ORM
-- **Development**: Docker Compose for local environment
+- **Backend**: Next.js API Routes with centralized error handling
+- **Database**: PostgreSQL with Prisma ORM (12 entities, comprehensive relationships)
+- **Caching**: Redis support for sessions and frequently accessed data
+- **Containerization**: Full Docker support with docker-compose
+- **Observability**: Structured logging, metrics collection, health checks
+- **Type Safety**: End-to-end TypeScript with strict mode
 
 ## Getting Started
 
@@ -247,24 +273,79 @@ The Cell Hub can integrate with:
 - **Communication tools**: Link cells to Discord channels, Slack workspaces
 - **Learning platforms**: Connect study cells to course content
 
+## Documentation
+
+### Core Documentation
+- **[Architecture Guide](docs/ARCHITECTURE.md)**: Complete system architecture, design patterns, and technical decisions
+- **[Integration Recipes](docs/INTEGRATION_RECIPES.md)**: Practical examples for integrating with Auth0, SendGrid, OpenAI, Discord, and more
+- **[Phase 3 Overview](docs/PHASE3_OVERVIEW.md)**: Strategic roadmap and feature planning
+- **[Changelog](CHANGELOG.md)**: Version history and migration guides
+
+### Quick Links
+- [API Reference](#api-reference)
+- [Domain Model](#domain-model)
+- [Extension & Integration](#extension--integration)
+- [Deployment Guide](#deployment)
+
 ## Architecture
 
-### Generic Design Principles
+### Layered Architecture
 
-This system is intentionally generic and can be adapted for various use cases:
+```
+Presentation Layer (Next.js Pages & API Routes)
+         ↓
+Application Layer (Services: Health, Recommendations)
+         ↓
+Domain Layer (Entities, Events, Business Logic)
+         ↓
+Infrastructure Layer (Prisma ORM, Adapters, Metrics)
+         ↓
+External Systems (DB, AI, Notifications, Calendar)
+```
 
-- **Flexible IDs**: Uses external references (`communityId`, `memberId`) to integrate with any identity system
-- **JSON Fields**: Theme tags and session metadata stored as JSON for flexibility
-- **Role System**: Simple three-tier role system (Member, Host, Co-host)
-- **Session Types**: Four predefined types plus extensible metadata field
-- **Soft Deletes**: Track when members leave (can rejoin later)
+### Key Patterns
 
-### Scalability Considerations
+1. **Adapter Pattern**: Pluggable external integrations
+2. **Event-Driven**: Domain events for loose coupling
+3. **Service Layer**: Encapsulated business logic
+4. **Repository Pattern**: Data access via Prisma
 
-- Database indexes on frequently queried fields
-- Efficient queries with Prisma's relation loading
-- API pagination support (limit parameters)
-- Stateless API design for horizontal scaling
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for complete details.
+
+### Domain Model
+
+**12 Core Entities:**
+- Cell (with configuration, topics, templates)
+- CellMembership (with engagement tracking)
+- CellSessionRecord
+- CellConfiguration
+- CellTopic
+- MemberProfile
+- CellActivity
+- CellTemplate
+- CellHealthSnapshot
+- CellRelation
+- MemberRelation
+
+**5 Enums:**
+- Role, SessionType, CellStatus, CellVisibility, ActivityType, HealthStatus, TrendDirection, RelationType
+
+### Extensibility
+
+**Adapters** - Swap implementations for:
+- Notifications (Email, SMS, Discord, Slack)
+- AI (OpenAI, Claude, custom)
+- Metrics (Prometheus, Datadog)
+- Calendar (Google, Outlook)
+- Profiles (Auth0, Clerk, custom)
+
+**Events** - React to domain events:
+- cell.created, cell.updated, cell.archived
+- member.joined, member.left, member.role_changed
+- session.created, session.completed
+- health.status_changed, health.intervention_triggered
+
+See [INTEGRATION_RECIPES.md](docs/INTEGRATION_RECIPES.md) for examples.
 
 ## Testing
 
