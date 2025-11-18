@@ -18,6 +18,49 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - cellhub-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: cellhub-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cellhub-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cellhub-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/cellhub?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - cellhub-network
 
 volumes:
   postgres_data:
+  redis_data:
+
+networks:
+  cellhub-network:
+    driver: bridge

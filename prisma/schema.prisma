@@ -21,33 +21,57 @@ model Cell {
   name                String
   descriptionMarkdown String?             @db.Text
   themeTagsJson       String?             @db.Text // JSON array of theme tags
+  status              CellStatus          @default(ACTIVE)
+  visibility          CellVisibility      @default(PUBLIC)
+  maxMembers          Int?                // Maximum number of members allowed
+  parentCellId        String?             // For nested/hierarchical cells
+  templateId          String?             // Template used to create this cell
+  archivedAt          DateTime?           // When the cell was archived
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 
   // Relations
   memberships         CellMembership[]
   sessionRecords      CellSessionRecord[]
+  configuration       CellConfiguration?
+  topics              CellTopic[]
+  activities          CellActivity[]
+  healthSnapshots     CellHealthSnapshot[]
+  childCells          Cell[]              @relation("CellHierarchy")
+  parentCell          Cell?               @relation("CellHierarchy", fields: [parentCellId], references: [id])
+  template            CellTemplate?       @relation(fields: [templateId], references: [id])
+  relatedFromCells    CellRelation[]      @relation("RelatedFromCell")
+  relatedToCells      CellRelation[]      @relation("RelatedToCell")
 
   @@index([communityId])
   @@index([key])
+  @@index([status])
+  @@index([parentCellId])
+  @@index([templateId])
 }
 
 // CellMembership tracks which members belong to which cells and their roles
 model CellMembership {
-  id        String    @id @default(cuid())
-  cellId    String
-  memberId  String    // External reference to member/user
-  role      Role      @default(MEMBER)
-  joinedAt  DateTime  @default(now())
-  leftAt    DateTime? // Null if currently active
+  id             String    @id @default(cuid())
+  cellId         String
+  memberId       String    // External reference to member/user
+  role           Role      @default(MEMBER)
+  joinedAt       DateTime  @default(now())
+  leftAt         DateTime? // Null if currently active
+  invitedBy      String?   // Member ID who invited this person
+  introductionText String? @db.Text // Self-introduction when joining
+  engagementScore Float?   // Calculated engagement score (0-100)
 
   // Relations
-  cell      Cell      @relation(fields: [cellId], references: [id], onDelete: Cascade)
+  cell           Cell             @relation(fields: [cellId], references: [id], onDelete: Cascade)
+  memberProfile  MemberProfile?   @relation(fields: [memberId], references: [memberId])
+  activities     CellActivity[]
 
   @@unique([cellId, memberId, joinedAt])
   @@index([cellId])
   @@index([memberId])
   @@index([leftAt])
+  @@index([role])
 }
 
 // CellSessionRecord tracks activities and meetings within a cell
@@ -67,6 +91,181 @@ model CellSessionRecord {
   @@index([ts])
 }
 
+// CellConfiguration stores per-cell settings and preferences
+model CellConfiguration {
+  id                    String   @id @default(cuid())
+  cellId                String   @unique
+  meetingFrequency      String?  // e.g., "weekly", "biweekly", "monthly"
+  preferredDayOfWeek    Int?     // 0-6 (Sunday-Saturday)
+  preferredTimeOfDay    String?  // e.g., "morning", "afternoon", "evening"
+  autoCloseAfterDays    Int?     // Auto-archive cell after N days of inactivity
+  requiresApproval      Boolean  @default(false) // Host approval required to join
+  allowGuestSessions    Boolean  @default(true)
+  minMembersRequired    Int?     // Minimum members to remain active
+  notificationSettings  String?  @db.Text // JSON with notification preferences
+  customFieldsJson      String?  @db.Text // Custom configuration fields
+
+  // Relations
+  cell                  Cell     @relation(fields: [cellId], references: [id], onDelete: Cascade)
+
+  @@index([cellId])
+}
+
+// CellTopic represents structured topics/subtopics for cells
+model CellTopic {
+  id              String   @id @default(cuid())
+  cellId          String
+  name            String
+  description     String?  @db.Text
+  parentTopicId   String?  // For hierarchical topics
+  displayOrder    Int      @default(0)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  cell            Cell         @relation(fields: [cellId], references: [id], onDelete: Cascade)
+  parentTopic     CellTopic?   @relation("TopicHierarchy", fields: [parentTopicId], references: [id])
+  childTopics     CellTopic[]  @relation("TopicHierarchy")
+
+  @@index([cellId])
+  @@index([parentTopicId])
+  @@index([isActive])
+}
+
+// MemberProfile stores extended member information relevant to cells
+model MemberProfile {
+  id              String   @id @default(cuid())
+  memberId        String   @unique // External member/user ID
+  displayName     String?
+  bio             String?  @db.Text
+  skillsJson      String?  @db.Text // JSON array of skills
+  interestsJson   String?  @db.Text // JSON array of interests
+  timezone        String?
+  availabilityJson String? @db.Text // JSON with availability preferences
+  preferredRoles  String?  @db.Text // JSON array of preferred roles
+  experienceLevel String?  // e.g., "beginner", "intermediate", "expert"
+  linkedinUrl     String?
+  githubUrl       String?
+  websiteUrl      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  memberships     CellMembership[]
+  activities      CellActivity[]
+  mentorRelations MemberRelation[] @relation("MentorRelation")
+  menteeRelations MemberRelation[] @relation("MenteeRelation")
+
+  @@index([memberId])
+}
+
+// CellActivity tracks granular member activities within cells
+model CellActivity {
+  id              String            @id @default(cuid())
+  cellId          String
+  membershipId    String?
+  memberId        String
+  activityType    ActivityType
+  description     String?           @db.Text
+  metadataJson    String?           @db.Text
+  occurredAt      DateTime          @default(now())
+
+  // Relations
+  cell            Cell              @relation(fields: [cellId], references: [id], onDelete: Cascade)
+  membership      CellMembership?   @relation(fields: [membershipId], references: [id])
+  memberProfile   MemberProfile     @relation(fields: [memberId], references: [memberId])
+
+  @@index([cellId])
+  @@index([membershipId])
+  @@index([memberId])
+  @@index([activityType])
+  @@index([occurredAt])
+}
+
+// CellTemplate provides reusable templates for creating cells
+model CellTemplate {
+  id                  String   @id @default(cuid())
+  name                String
+  description         String?  @db.Text
+  category            String?  // e.g., "study-group", "project-team", "social"
+  defaultConfig       String?  @db.Text // JSON with default configuration
+  suggestedTopics     String?  @db.Text // JSON array of suggested topics
+  templateFieldsJson  String?  @db.Text // Custom fields for this template
+  isPublic            Boolean  @default(true)
+  createdBy           String?  // Member ID who created template
+  usageCount          Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relations
+  cells               Cell[]
+
+  @@index([category])
+  @@index([isPublic])
+}
+
+// CellHealthSnapshot captures historical health metrics
+model CellHealthSnapshot {
+  id                  String   @id @default(cuid())
+  cellId              String
+  healthScore         Int      // 0-100
+  healthStatus        HealthStatus
+  memberCount         Int
+  activeHostCount     Int
+  sessionCount30d     Int      // Sessions in last 30 days
+  avgAttendance       Float
+  engagementScore     Float
+  trendDirection      TrendDirection
+  snapshotDate        DateTime @default(now())
+  metadataJson        String?  @db.Text // Additional metrics
+
+  // Relations
+  cell                Cell     @relation(fields: [cellId], references: [id], onDelete: Cascade)
+
+  @@index([cellId])
+  @@index([snapshotDate])
+  @@index([healthStatus])
+}
+
+// CellRelation tracks relationships between cells
+model CellRelation {
+  id              String         @id @default(cuid())
+  fromCellId      String
+  toCellId        String
+  relationType    RelationType
+  createdAt       DateTime       @default(now())
+
+  // Relations
+  fromCell        Cell           @relation("RelatedFromCell", fields: [fromCellId], references: [id], onDelete: Cascade)
+  toCell          Cell           @relation("RelatedToCell", fields: [toCellId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCellId, toCellId, relationType])
+  @@index([fromCellId])
+  @@index([toCellId])
+}
+
+// MemberRelation tracks relationships between members
+model MemberRelation {
+  id              String   @id @default(cuid())
+  mentorId        String
+  menteeId        String
+  relationshipType String  // e.g., "mentor", "collaborator", "study-buddy"
+  status          String   @default("active") // "active", "completed", "paused"
+  startedAt       DateTime @default(now())
+  endedAt         DateTime?
+  notesJson       String?  @db.Text
+
+  // Relations
+  mentor          MemberProfile @relation("MentorRelation", fields: [mentorId], references: [memberId])
+  mentee          MemberProfile @relation("MenteeRelation", fields: [menteeId], references: [memberId])
+
+  @@unique([mentorId, menteeId, relationshipType])
+  @@index([mentorId])
+  @@index([menteeId])
+  @@index([status])
+}
+
 // Enums
 enum Role {
   MEMBER
@@ -79,4 +278,52 @@ enum SessionType {
   STUDY
   PROJECT
   OTHER
+}
+
+enum CellStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+  CLOSED
+}
+
+enum CellVisibility {
+  PUBLIC
+  PRIVATE
+  INVITE_ONLY
+}
+
+enum ActivityType {
+  SESSION_ATTENDED
+  MESSAGE_POSTED
+  RESOURCE_SHARED
+  MEMBER_INVITED
+  ROLE_CHANGED
+  TOPIC_CREATED
+  POLL_CREATED
+  POLL_VOTED
+  COMMENT_POSTED
+  OTHER
+}
+
+enum HealthStatus {
+  HEALTHY
+  WARNING
+  AT_RISK
+  INACTIVE
+}
+
+enum TrendDirection {
+  IMPROVING
+  STABLE
+  DECLINING
+}
+
+enum RelationType {
+  PARENT_CHILD
+  RELATED
+  MERGED_FROM
+  SPLIT_FROM
+  COLLABORATIVE
 }
