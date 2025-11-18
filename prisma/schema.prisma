@@ -1,0 +1,82 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Cell represents a sub-community or group within the larger community
+model Cell {
+  id                  String              @id @default(cuid())
+  communityId         String              // External reference to parent community
+  key                 String              @unique // Unique identifier for URL/routing
+  name                String
+  descriptionMarkdown String?             @db.Text
+  themeTagsJson       String?             @db.Text // JSON array of theme tags
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  // Relations
+  memberships         CellMembership[]
+  sessionRecords      CellSessionRecord[]
+
+  @@index([communityId])
+  @@index([key])
+}
+
+// CellMembership tracks which members belong to which cells and their roles
+model CellMembership {
+  id        String    @id @default(cuid())
+  cellId    String
+  memberId  String    // External reference to member/user
+  role      Role      @default(MEMBER)
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime? // Null if currently active
+
+  // Relations
+  cell      Cell      @relation(fields: [cellId], references: [id], onDelete: Cascade)
+
+  @@unique([cellId, memberId, joinedAt])
+  @@index([cellId])
+  @@index([memberId])
+  @@index([leftAt])
+}
+
+// CellSessionRecord tracks activities and meetings within a cell
+model CellSessionRecord {
+  id              String       @id @default(cuid())
+  cellId          String
+  ts              DateTime     @default(now()) // Timestamp of the session
+  sessionType     SessionType  @default(OTHER)
+  attendanceCount Int          @default(0)
+  notesMarkdown   String?      @db.Text
+  metaJson        String?      @db.Text // Additional metadata as JSON
+
+  // Relations
+  cell            Cell         @relation(fields: [cellId], references: [id], onDelete: Cascade)
+
+  @@index([cellId])
+  @@index([ts])
+}
+
+// Enums
+enum Role {
+  MEMBER
+  HOST
+  COHOST
+}
+
+enum SessionType {
+  CIRCLE
+  STUDY
+  PROJECT
+  OTHER
+}
